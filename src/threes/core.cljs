@@ -33,32 +33,32 @@
 
 (defn mk-renderer
   [width height]
-  (set-size! (js/THREE.WebGLRenderer.) width height))
+  (set-size! (new js/THREE.CSS3DRenderer) width height))
 
-(defn mk-cube
-  [x y z c]
-  (let [geo (js/THREE.BoxGeometry. x y z)
-        mat (js/THREE.MeshBasicMaterial. (clj->js {:color c
-                                                   :wireframe true}))]
-    (js/THREE.Mesh. geo mat)))
+(defn mk-box
+  [width height color]
+  (let [el (.createElement js/document "div")]
+    (set! (.-innerHTML el) "Testing")
+    (set! (.. el -style -cssText) (str "font-size: 34px; border: 1px solid black; width: " width "px; height: " height "px; background-color: " color ";"))
+    (new js/THREE.CSS3DObject el)))
 
 
 ;;-----------------------------------------------------------------------------
 
 (defn make-scene
   []
-  (let [cube (mk-cube 1 1 1 0x336699)
+  (let [box (mk-box 300 100 "#336699")
         scene {:scene (mk-scene)
                :camera (mk-camera)
                :renderer (mk-renderer (win-width) (win-height))
                :animating? (atom nil)
-               :cube cube
+               :box box
                :xform (fn []
-                        (set! (.. cube -rotation -x) (+ (.. cube -rotation -x) 0.1))
-                        (set! (.. cube -rotation -y) (+ (.. cube -rotation -y) 0.1)))}]
+                        (set! (.. box -rotation -x) (+ (.. box -rotation -x) 0.04))
+                        (set! (.. box -rotation -y) (+ (.. box -rotation -y) 0.07)))}]
     (doto (:scene scene)
-      (.add cube))
-    (set! (.. (:camera scene) -position -z) 5)
+      (.add box))
+    (set! (.. (:camera scene) -position -z) 400)
     scene))
 
 (defn animate!
