@@ -20,6 +20,10 @@
        (apply str)
        (s/trim)))
 
+(defn by-id
+  [id]
+  (.getElementById js/document id))
+
 (defn mk-element
   [tag id]
   (doto (.createElement js/document tag)
@@ -34,6 +38,11 @@
   [el style]
   (set! (.. el -style -cssText)
         (clj->css style))
+  el)
+
+(defn append-child!
+  [el place]
+  (.appendChild place el)
   el)
 
 (defn mk-3d
@@ -82,6 +91,8 @@
                    :height h
                    :color "#222"
                    :text-align "center"
+                   :box-sizing "border-box"
+                   :-webkit-box-sizing "border-box"
                    :background-color c})
       (mk-3d)))
 
@@ -114,7 +125,7 @@
 (def states
   (atom {:a {:pos {:x -100 :y 100 :z 0}
              :rot {:x 0 :y 0 :z 0}}
-         :b {:pos {:x 0  :y 100 :z 0}
+         :b {:pos {:x 0 :y 100 :z 0}
              :rot {:x 0 :y 0 :z 0}}
          :c {:pos {:x 100 :y 100 :z 0}
              :rot {:x 0 :y 0 :z 0}}}))
@@ -141,13 +152,6 @@
   (doseq [[id shape] shapes]
     (.add scene shape)))
 
-(defn setup!
-  [game]
-  ;;
-  ;; Hijack the dom.
-  ;;
-  (set! js/document.body (.createElement js/document "body"))
-  (.appendChild js/document.body (.-domElement (:renderer game))))
 
 (defn render
   ;;
@@ -160,6 +164,51 @@
       (set-pos! shape (:pos state))
       (set-rot! shape (:rot state))))
   (.render renderer scene camera))
+
+(defn resize!
+  [evt {:keys [camera renderer] :as game}]
+  (set! (.. camera -aspect) (/ (win-width) (win-height)))
+  (.updateProjectionMatrix camera)
+  (.setSize renderer (win-width) (- (win-height) 100))
+  (render game))
+
+(defn setup!
+  [game]
+  ;;
+  ;; Hijack the dom.
+  ;;
+  (set! js/document.body (.createElement js/document "body"))
+  (-> (.-domElement (:renderer game))
+      (set-style! {:position "absolute"
+                   :top "0"
+                   :left "0"
+                   :right "0"
+                   :bottom "100px"
+                   :background-color "#d8d8d8"
+                   :border "2px solid sienna"
+                   :box-sizing "border-box"
+                   :-webkit-box-sizing "border-box"})
+      (append-child! js/document.body))
+  (-> (mk-element "footer" "status")
+      (set-html! "footer")
+      (set-style! {:background-color "#222"
+                   :border-top: "1px solid #666"
+                   :color "dodgerblue"
+                   :font-size "10pt"
+                   :font-family "monospace"
+                   :overflow "hidden"
+                   :position "fixed"
+                   :height "100px"
+                   :left "0"
+                   :right "0"
+                   :bottom "0"
+                   :padding "5px"
+                   :box-sizing "border-box"
+                   :-webkit-box-sizing "border-box"})
+      (append-child! js/document.body))
+  (.addEventListener js/window "resize" #(resize! % game) false))
+
+
 
 (defn start!
   [{:keys [animating?] :as game}]
@@ -195,9 +244,13 @@
   (doseq [oid (keys @states)]
     (case oid
       :a (bump-rot! states oid + .01)
-      (bump-rot! states oid - .02))))
+      (bump-rot! states oid - .02)))
+  (set-html! (by-id "status")
+             (str {:win-height (win-height) :win-width (win-width)}
+                  "<br/>"
+                  (apply str (map (fn [[k v]] (str [k v] "<br/>")) @states)))))
 
-(def gap (int (/ 1000 60)))
+(def gap 16.66667)
 
 (defn start-sim!
   [sim]
@@ -218,8 +271,17 @@
 ;;-----------------------------------------------------------------------------
 ;;-----------------------------------------------------------------------------
 
+(def g (make-game))
+(add-all g @shapes)
+(setup! g)
+(start! g)
+
+(def s (make-sim))
+(start-sim! s)
 
 (comment
+
+  ;; Evaluate these to play with the sim.
 
   (def g (make-game))
   (add-all g @shapes)
