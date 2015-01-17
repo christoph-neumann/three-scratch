@@ -3,14 +3,42 @@
    [cljs.core.async.macros :refer [go]])
   (:require
    [cljs.core.async :refer [<! timeout close! chan alts! put!]]
+   [clojure.string :as s]
    [weasel.repl :as ws-repl]))
 
 (enable-console-print!)
 
-(try
-  (ws-repl/connect "ws://localhost:9001")
-  (catch js/Error e
-    (println "REPL:" e)))
+(ws-repl/connect "ws://localhost:9001")
+
+;;-----------------------------------------------------------------------------
+;; DOM utilities
+
+(defn clj->css
+  [style-map]
+  (->> style-map
+       (map #(let [[k v] %] (str (name k) ": " v "; ")))
+       (apply str)
+       (s/trim)))
+
+(defn mk-element
+  [tag id]
+  (doto (.createElement js/document tag)
+    (.setAttribute "id" id)))
+
+(defn set-html!
+  [el html]
+  (set! (.-innerHTML el) html)
+  el)
+
+(defn set-style!
+  [el style]
+  (set! (.. el -style -cssText)
+        (clj->css style))
+  el)
+
+(defn mk-3d
+  [el]
+  (new js/THREE.CSS3DObject el))
 
 ;;-----------------------------------------------------------------------------
 
@@ -33,20 +61,29 @@
     c))
 
 (defn set-size!
-  [thing width height]
-  (doto thing
+  [object width height]
+  (doto object
     (.setSize width height)))
 
 (defn mk-renderer
   [width height]
-  (set-size! (js/THREE.WebGLRenderer.) width height))
+  (set-size! (js/THREE.CSS3DRenderer.) width height))
 
-(defn mk-cube
-  [x y z c]
-  (let [geo (js/THREE.BoxGeometry. x y z)
-        mat (js/THREE.MeshBasicMaterial. (clj->js {:color c
-                                                   :wireframe true}))]
-    (js/THREE.Mesh. geo mat)))
+(defn mk-brick
+  [id w h c]
+  (-> (mk-element "div" id)
+      (set-html! (str "brick:" id))
+      (set-style! {:font-size "34px"
+                   :font-family "helvetica-neue"
+                   :font-weigth "100"
+                   :border "1px solid #555"
+                   :border-radius "3px"
+                   :width w
+                   :height h
+                   :color "#222"
+                   :text-align "center"
+                   :background-color c})
+      (mk-3d)))
 
 ;;-----------------------------------------------------------------------------
 
@@ -75,19 +112,22 @@
 ;; like react but without the diff optimization. (Actually, we could do that.)
 
 (def states
-  (atom {:a {:pos {:x -1 :y 0 :z 0}
+  (atom {:a {:pos {:x -100 :y 100 :z 0}
              :rot {:x 0 :y 0 :z 0}}
-         :b {:pos {:x 0 :y 0 :z 0}
+         :b {:pos {:x 0  :y 100 :z 0}
+             :rot {:x 0 :y 0 :z 0}}
+         :c {:pos {:x 100 :y 100 :z 0}
              :rot {:x 0 :y 0 :z 0}}}))
 
 (def shapes
-  (atom {:a (mk-cube 1 1 1 0x336699)
-         :b (mk-cube 2 2 2 0x990000)}))
+  (atom {:a (mk-brick "a" 300 100 "#336699")
+         :b (mk-brick "b" 300 100 "#990000")
+         :c (mk-brick "c" 300 100 "#009900")}))
 
 (defn make-game
   []
   {:scene (mk-scene)
-   :camera (mk-camera 5)
+   :camera (mk-camera 400)
    :renderer (mk-renderer (win-width) (win-height))
    :animating? (atom nil)})
 
@@ -147,7 +187,8 @@
 (defn bump-rot!
   [states oid op v]
   (swap! states (fn [s] (-> (update-in s [oid :rot :x] #(op % v))
-                           (update-in [oid :rot :y] #(op % v))))))
+                           (update-in [oid :rot :y] #(op % v))
+                           (update-in [oid :rot :z] #(op % v))))))
 
 (defn sim-work!
   [states]
@@ -177,6 +218,7 @@
 ;;-----------------------------------------------------------------------------
 ;;-----------------------------------------------------------------------------
 
+
 (comment
 
   (def g (make-game))
@@ -197,7 +239,7 @@
 
   (require 'weasel.repl.websocket)
 
-  (cemerick.piggieback/cljs-repla
+  (cemerick.piggieback/cljs-repl
    :repl-env (weasel.repl.websocket/repl-env
               :ip "0.0.0.0" :port 9001))
   ;;
