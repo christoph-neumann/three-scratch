@@ -53,7 +53,7 @@
 (defn mk-brick
   [id w h c]
   (-> (dom/mk-element "div" id)
-      (dom/set-html! (str "-{ " id " }-"))
+      (dom/set-html! (str id))
       (dom/set-style! (merge (:brick styles)
                          {:width (str w "px")
                           :height (str h "px")

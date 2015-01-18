@@ -34,26 +34,39 @@
                (< (int (:x pos)) (neg radius)) radius
                :else (+ x speed))))))
 
+(defn slide-reverse!
+  [states oid width radius]
+  (let [pos   (:pos (oid @states))
+        speed (:speed (oid @states))]
+    (swap! states update-in [oid]
+           (fn [{:keys [pos speed] :as state}]
+             (cond-> state
+               (> (:x pos) radius)       (assoc :speed (neg speed)
+                                                :pos (assoc pos :x (- radius speed)))
+               (< (:x pos) (neg radius)) (assoc :speed (neg speed)
+                                                :pos (assoc pos :x (+ (neg radius) (neg speed))))
+               true                      (update-in [:pos :x] #(+ % speed)))))))
+
 (defn sim-work!
   [states]
   (let [w (dom/win-width)
-        radius (+ 100 (int (/ w 2)))]
+        radius (/ w 2)]
     (doseq [oid (keys @states)]
-      (slide! states oid w radius))))
+      (slide-reverse! states oid w radius))))
 
-;; (defn debug-state!
-;;   [states]
-;;   (set-html! (by-id "status")
-;;              (str {:dim (str (dom/win-width) "x" (screen-h (dom/win-width)))
-;;                    :rat (/ (dom/win-width) (screen-h (dom/win-width)))
-;;                    :radius (/ (dom/win-width) 2)}
-;;                   "<br/>"
-;;                   (apply str (map (fn [[k v]]
-;;                                     (str [k (:x (:pos v))] "<br/>"))
-;;                                   @states))
-;;                   ;; "<br/>"
-;;                   ;; (apply str (map (fn [[k v]] (str [k v] "<br/>")) @states))
-;;                   )))
+(defn debug-state!
+  [states]
+  (dom/set-html! (dom/by-id "status")
+                 (str {:dim (str (dom/win-width) "x" (screen-h (dom/win-width)))
+                       :rat (/ (dom/win-width) (screen-h (dom/win-width)))
+                       :radius (/ (dom/win-width) 2)}
+                      ;; "<br/>"
+                      ;; (apply str (map (fn [[k v]]
+                      ;;                   (str [k (:x (:pos v))] "<br/>"))
+                      ;;                 @states))
+                      "<br/>"
+                      (apply str (map (fn [[k v]] (str [k v] "<br/>")) @states))
+                      )))
 
 
 (defn start-sim!
@@ -64,7 +77,7 @@
           (let [[val ch] (alts! [(:control @sim) (timeout gap)])]
             (when-not (= val :done)
               (sim-work! (:states @sim))
-;;              #_(debug-state! states)
+              #_(debug-state! (:states @sim))
               (recur)))))))
 
 (defn stop-sim!
