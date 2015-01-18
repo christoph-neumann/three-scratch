@@ -49,13 +49,62 @@
   [el]
   (new js/THREE.CSS3DObject el))
 
+(defn listen!
+  ([el event cb]
+   (.addEventListener el event cb false))
+  ([event cb]
+   (listen! js/window event cb)))
+
+;;-----------------------------------------------------------------------------
+;; Styles
+
+(def styles
+  {:game-board
+   {:position "absolute"
+    :top "0"
+    :left "0"
+    :right "0"
+    :bottom "100px"
+    :background-color "#d8d8d8"
+    :border "2px solid sienna"
+    :box-sizing "border-box"
+    :-webkit-box-sizing "border-box"}
+   :status
+   {:background-color "#222"
+    :border-top: "1px solid #666"
+    :color "dodgerblue"
+    :font-size "10pt"
+    :font-family "monospace"
+    :overflow "hidden"
+    :position "fixed"
+    :height "100px"
+    :left "0"
+    :right "0"
+    :bottom "0"
+    :padding "5px"
+    :box-sizing "border-box"
+    :-webkit-box-sizing "border-box"}
+   :brick
+   {:font-size "20px"
+    :font-family "Helvetica Neue"
+    :font-weight "400"
+    :border "1px solid #555"
+    :border-radius "3px"
+    :width "300px"
+    :height "100px"
+    :color "white"
+    :background-color "#369"
+    :text-align "center"
+    :box-sizing "border-box"
+    :-webkit-box-sizing "border-box"}})
+
 ;;-----------------------------------------------------------------------------
 
 (defn win-height
   []
   (.-innerHeight js/window))
 
-(defn ^:public win-width
+(defn win-width
   []
   (.-innerWidth js/window))
 
@@ -81,20 +130,13 @@
 (defn mk-brick
   [id w h c]
   (-> (mk-element "div" id)
-      (set-html! (str "brick:" id))
-      (set-style! {:font-size "34px"
-                   :font-family "helvetica-neue"
-                   :font-weigth "100"
-                   :border "1px solid #555"
-                   :border-radius "3px"
-                   :width w
-                   :height h
-                   :color "#222"
-                   :text-align "center"
-                   :box-sizing "border-box"
-                   :-webkit-box-sizing "border-box"
-                   :background-color c})
+      (set-html! (str "-[ " id " ]-"))
+      (set-style! (merge (:brick styles)
+                         {:width (str w "px")
+                          :height (str h "px")
+                          :background-color c}))
       (mk-3d)))
+
 
 ;;-----------------------------------------------------------------------------
 
@@ -123,17 +165,17 @@
 ;; like react but without the diff optimization. (Actually, we could do that.)
 
 (def states
-  (atom {:a {:pos {:x -100 :y 100 :z 0}
-             :rot {:x 0 :y 0 :z 0}}
-         :b {:pos {:x 0 :y 100 :z 0}
-             :rot {:x 0 :y 0 :z 0}}
-         :c {:pos {:x 100 :y 100 :z 0}
-             :rot {:x 0 :y 0 :z 0}}}))
+  (atom {:a {:pos {:x 0 :y 200 :z 0}
+             :speed 2}
+         :b {:pos {:x 0 :y 150 :z 0}
+             :speed -2.33}
+         :c {:pos {:x 0 :y 100 :z 0}
+             :speed 1.5}}))
 
 (def shapes
-  (atom {:a (mk-brick "a" 300 100 "#336699")
-         :b (mk-brick "b" 300 100 "#990000")
-         :c (mk-brick "c" 300 100 "#009900")}))
+  (atom {:a (mk-brick "a" 100 30 "#336699")
+         :b (mk-brick "b" 100 30 "#990000")
+         :c (mk-brick "c" 100 30 "#009900")}))
 
 (defn make-game
   []
@@ -152,6 +194,10 @@
   (doseq [[id shape] shapes]
     (.add scene shape)))
 
+(defn render-brick!
+  [brick state]
+  (when (:pos state)
+    (set-pos! brick (:pos state))))
 
 (defn render
   ;;
@@ -161,8 +207,7 @@
   [{:keys [renderer scene camera] :as game}]
   (doseq [[id shape] @shapes]
     (let [state (id @states)]
-      (set-pos! shape (:pos state))
-      (set-rot! shape (:rot state))))
+      (render-brick! shape state)))
   (.render renderer scene camera))
 
 (defn resize!
@@ -176,39 +221,21 @@
   [game]
   ;;
   ;; Hijack the dom.
-  ;;
   (set! js/document.body (.createElement js/document "body"))
+  ;;
+  ;; Game Board
   (-> (.-domElement (:renderer game))
-      (set-style! {:position "absolute"
-                   :top "0"
-                   :left "0"
-                   :right "0"
-                   :bottom "100px"
-                   :background-color "#d8d8d8"
-                   :border "2px solid sienna"
-                   :box-sizing "border-box"
-                   :-webkit-box-sizing "border-box"})
+      (set-style! (:game-board styles))
       (append-child! js/document.body))
+  ;;
+  ;; Status
   (-> (mk-element "footer" "status")
-      (set-html! "footer")
-      (set-style! {:background-color "#222"
-                   :border-top: "1px solid #666"
-                   :color "dodgerblue"
-                   :font-size "10pt"
-                   :font-family "monospace"
-                   :overflow "hidden"
-                   :position "fixed"
-                   :height "100px"
-                   :left "0"
-                   :right "0"
-                   :bottom "0"
-                   :padding "5px"
-                   :box-sizing "border-box"
-                   :-webkit-box-sizing "border-box"})
+      (set-html! "debug")
+      (set-style! (:status styles))
       (append-child! js/document.body))
-  (.addEventListener js/window "resize" #(resize! % game) false))
-
-
+  ;;
+  ;; Resize listener
+  (listen! "resize" #(resize! % game)))
 
 (defn start!
   [{:keys [animating?] :as game}]
@@ -223,30 +250,41 @@
   [game]
   (reset! (:animating? game) nil))
 
-
 ;;-----------------------------------------------------------------------------
-;;-----------------------------------------------------------------------------
-;; Simulate game-state coming in from the server.
+;; -----------------------------------------------------------------------------
+;; This sim stuff just updates the "states" global defined above. It
+;; has no idea that there are actual rendered objects floating around
+;; the DOM. It does have to know about the window width, though.
 
 (defn make-sim
   []
   (atom {:control (chan)
          :working? false}))
 
-(defn bump-rot!
-  [states oid op v]
-  (swap! states (fn [s] (-> (update-in s [oid :rot :x] #(op % v))
-                           (update-in [oid :rot :y] #(op % v))
-                           (update-in [oid :rot :z] #(op % v))))))
+(defn slide!
+  [oid]
+  (let [brick (oid @shapes)
+        pos (:pos (oid @states))
+        speed (:speed (oid @states))
+        max (+ 100 (int (/ (win-width) 2)))
+        min (* -1 max)]
+    (swap! states update-in [oid :pos :x]
+           (fn [x]
+             (cond
+               (> (:x pos) max) min
+               (< (:x pos) min) max
+               :else (+ x speed))))))
 
 (defn sim-work!
   [states]
   (doseq [oid (keys @states)]
-    (case oid
-      :a (bump-rot! states oid + .01)
-      (bump-rot! states oid - .02)))
+    (slide! oid)))
+
+(defn debug-state!
+  [states]
   (set-html! (by-id "status")
-             (str {:win-height (win-height) :win-width (win-width)}
+             (str {:win-height (win-height) :win-width (win-width)
+                   :radius (int (/ (win-width) 2))}
                   "<br/>"
                   (apply str (map (fn [[k v]] (str [k v] "<br/>")) @states)))))
 
@@ -260,6 +298,7 @@
           (let [[val ch] (alts! [(:control @sim) (timeout gap)])]
             (when-not (= val :done)
               (sim-work! states)
+              #_(debug-state! states)
               (recur)))))))
 
 (defn stop-sim!
