@@ -61,6 +61,8 @@
 (def styles
   {:game-board
    {:position "absolute"
+    :margin "0"
+    :padding "0"
     :top "0"
     :left "0"
     :right "0"
@@ -108,13 +110,18 @@
   []
   (.-innerWidth js/window))
 
+(defn win-top
+  []
+  (int (/ (win-height) 2)))
+
 (defn  mk-scene
   []
   (new js/THREE.Scene))
 
 (defn mk-camera
   [z]
-  (let [c (js/THREE.PerspectiveCamera. 75 (/ (win-width) (win-height)) 0.1 1000)]
+  (let [c (js/THREE.PerspectiveCamera. 75 (/ (win-width)
+                                             (- (win-height) 100)) 0.1 1000)]
     (set! (.. c -position -z) z)
     c))
 
@@ -165,17 +172,18 @@
 ;; like react but without the diff optimization. (Actually, we could do that.)
 
 (def states
-  (atom {:a {:pos {:x 0 :y 200 :z 0}
-             :speed 2}
-         :b {:pos {:x 0 :y 150 :z 0}
-             :speed -2.33}
-         :c {:pos {:x 0 :y 100 :z 0}
-             :speed 1.5}}))
+  (atom {:a {:pos {:x 0 :y (* 32 5) :z 0} :speed 2}
+         :b {:pos {:x 0 :y (* 32 6) :z 0} :speed -2.33}
+         :c {:pos {:x 0 :y (* 32 7) :z 0} :speed 1.5}
+         :d {:pos {:x 0 :y (* 32 8) :z 0} :speed -1.6}
+         :e {:pos {:x 0 :y (* 32 9) :z 0} :speed 1.7}}))
 
 (def shapes
   (atom {:a (mk-brick "a" 100 30 "#336699")
          :b (mk-brick "b" 100 30 "#990000")
-         :c (mk-brick "c" 100 30 "#009900")}))
+         :c (mk-brick "c" 100 30 "#009900")
+         :d (mk-brick "d" 100 30 "#000099")
+         :e (mk-brick "e" 100 30 "#990099")}))
 
 (defn make-game
   []
@@ -212,10 +220,12 @@
 
 (defn resize!
   [evt {:keys [camera renderer] :as game}]
-  (set! (.. camera -aspect) (/ (win-width) (win-height)))
-  (.updateProjectionMatrix camera)
-  (.setSize renderer (win-width) (- (win-height) 100))
-  (render game))
+  (let [h (- (win-height) 100)
+        w (win-width)]
+    (set! (.. camera -aspect) (/ w h))
+    (.updateProjectionMatrix camera)
+    (.setSize renderer w h)
+    (render game)))
 
 (defn setup!
   [game]
@@ -224,17 +234,14 @@
   (set! js/document.body (.createElement js/document "body"))
   ;;
   ;; Game Board
-  (-> (.-domElement (:renderer game))
-      (set-style! (:game-board styles))
-      (append-child! js/document.body))
-  ;;
-  ;; Status
-  (-> (mk-element "footer" "status")
-      (set-html! "debug")
-      (set-style! (:status styles))
-      (append-child! js/document.body))
-  ;;
-  ;; Resize listener
+  (let [wa (-> (mk-element "div" "workarea")
+               (set-style! (:game-board styles)))
+        st (-> (mk-element "footer" "status")
+               (set-html! "debug")
+               (set-style! (:status styles)))]
+    (append-child! (.-domElement (:renderer game)) wa)
+    (append-child! wa js/document.body)
+    (append-child! st js/document.body))
   (listen! "resize" #(resize! % game)))
 
 (defn start!
@@ -284,9 +291,11 @@
   [states]
   (set-html! (by-id "status")
              (str {:win-height (win-height) :win-width (win-width)
-                   :radius (int (/ (win-width) 2))}
-                  "<br/>"
-                  (apply str (map (fn [[k v]] (str [k v] "<br/>")) @states)))))
+                   :radius (int (/ (win-width) 2))
+                   :win-top (win-top)}
+                  ;; "<br/>"
+                  ;; (apply str (map (fn [[k v]] (str [k v] "<br/>")) @states))
+                  )))
 
 (def gap 16.66667)
 
@@ -298,7 +307,7 @@
           (let [[val ch] (alts! [(:control @sim) (timeout gap)])]
             (when-not (= val :done)
               (sim-work! states)
-              #_(debug-state! states)
+              (debug-state! states)
               (recur)))))))
 
 (defn stop-sim!
@@ -310,13 +319,17 @@
 ;;-----------------------------------------------------------------------------
 ;;-----------------------------------------------------------------------------
 
-(def g (make-game))
-(add-all g @shapes)
-(setup! g)
-(start! g)
+(defn main
+  []
+  (def g (make-game))
+  (add-all g @shapes)
+  (setup! g)
+ (start! g)
 
-(def s (make-sim))
-(start-sim! s)
+ (def s (make-sim))
+ (start-sim! s))
+
+(set! (.-onload js/window) main)
 
 (comment
 
